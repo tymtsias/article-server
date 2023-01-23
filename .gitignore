@@ -1,6 +1,7 @@
 project/project/
 project/target/
 target/
+src/resources/local.conf
 
 *.log
 *.iml
