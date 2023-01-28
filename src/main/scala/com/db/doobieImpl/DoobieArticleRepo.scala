@@ -1,7 +1,6 @@
 package com.db.doobieImpl
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import com.db.ArticlesRepo
 import com.models.Article
 import doobie.implicits._

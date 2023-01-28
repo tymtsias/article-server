@@ -14,7 +14,7 @@ class DoobieTagsRepo(transactor: Aux[IO, Unit]) extends TagsRepo {
   val getAllQuery = sql"""select distinct unnest (tag_list) from article""".query[String]
 
   override def getAll(): Future[Set[String]] =
-    getAllQuery.stream.compile.toList.transact(transactor).unsafeToFuture()(cats.effect.unsafe.implicits.global).map {
+    getAllQuery.stream.compile.toList.transact(transactor).unsafeToFuture().map {
       tagList =>
         tagList.toSet
     }

@@ -1,7 +1,6 @@
 package com.db.doobieImpl
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import com.db.UserRepo
 import com.models.auth.{LoginUser, NewUser, UserInfo, UserResponse}
 import doobie._

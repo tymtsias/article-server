@@ -14,6 +14,8 @@ case class UserResponseModel(user: UserResponse)
 
 object UserResponse {
 
+  def getEmailAndPass(token: String): Option[LoginUser] = ???
+
   def build(loginUser: LoginUser, userInfo: UserInfo) =
     UserResponseModel(
       UserResponse(bio = userInfo.bio,
