@@ -5,23 +5,25 @@ import cats.effect._
 import com.Conf
 import com.db.{ArticlesRepo, TagsRepo, UserRepo}
 import com.models.auth.{LoginUser, LoginUserModel, NewUser, NewUserModel, UserInfo, UserResponse}
-import com.Implicits.FutureOps
+import com.Implicits._
 import com.models.{ArticleModel, TagsResponse}
 import org.http4s._
 import org.http4s.dsl.io._
-import io.circe.generic.auto._
+import io.circe.generic.semiauto._
 import io.circe.syntax._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
-import org.http4s.server.AuthMiddleware
+import org.http4s.server.{AuthMiddleware, Router}
 import org.http4s.server.middleware._
-import org.http4s.util.CaseInsensitiveString
 import cats.data._
 import cats.implicits.toTraverseOps
-import com.Main.timer
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.blaze.BlazeServerBuilder
-
-import scala.concurrent.ExecutionContext.Implicits.global
+import org.typelevel.ci.CIString
+import cats.syntax.all._
+import org.http4s.implicits._
+import org.http4s.server.Router
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 
 object TagQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("tag")
@@ -48,7 +50,7 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
   }
 
     def authUser: Kleisli[IO, Request[IO],Either[CustomServerError,UserResponse]] = Kleisli { request: Request[IO] =>
-      val header: Option[Header.Raw] = request.headers.get(CaseInsensitiveString("Authorization")).map(_.head)
+      val header: Option[Header.Raw] = request.headers.get(CIString("Authorization")).map(_.toRaw)
       header match {
         case Some(h) =>
           getAuthUserFromHeader(h.value).map(_.toRight(X))
@@ -137,18 +139,15 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
       }
 
   val corsConfig =
-    CORSConfig.default
-      .withAllowCredentials(true)
-      .withAllowedOrigins(_ => true)
+    CORS.DefaultCORSConfig.copy(allowCredentials = true, allowedOrigins = _ => true)
 
+  val httpApp = Router("/" -> app).orNotFound
   def run() = {
-    BlazeServerBuilder[IO]
+    BlazeServerBuilder[IO](ExecutionContext.global)
       .bindHttp(Conf.httpPort, Conf.httpHost)
-      .withHttpApp(CORS(app, corsConfig).orNotFound)
+      .withHttpApp(CORS(httpApp, corsConfig))
       .resource
-      .useForever
-      .as {
-        ExitCode.Success
-      }
+      .use(_ => IO.never)
+      .as(ExitCode.Success)
   }
 }

@@ -5,9 +5,16 @@ import com.db.ArticlesRepo
 import com.models.Article
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
+import doobie._
+import doobie.implicits._
+import doobie.implicits.javasql._
 import doobie.postgres._
 import doobie.postgres.implicits._
-
+import doobie.postgres.pgisimplicits._
+import cats._
+import cats.implicits._
+import cats.effect._
+import cats.effect.implicits._
 import scala.concurrent.Future
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
