@@ -21,11 +21,15 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.typelevel.ci.CIString
 import cats.syntax.all._
 import org.http4s.implicits._
-import org.http4s.server.Router
-import scala.concurrent.duration._
+import org.http4s.syntax._
+import org.http4s._
+import org.http4s.dsl.io._
+import org.http4s.implicits._
+import cats._, cats.syntax._, cats.implicits._, cats.data._
 import scala.concurrent.ExecutionContext
 
-
+import cats.syntax.semigroupk._
+import org.http4s.syntax.kleisli._
 object TagQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("tag")
 
 object AuthorQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("author")
@@ -38,19 +42,18 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo){
-  object dsl extends Http4sDsl[IO] {}
-
-  import dsl._
-
+class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo) extends Http4sDsl[IO] {
   val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   def getAuthUserFromHeader(authHeader: String): IO[Option[UserResponse]] = {
-    UserResponse.getEmailAndPass(authHeader).map(loginUser => userRepo.verify(loginUser).map(maybeUserInfo => maybeUserInfo.map(userInfo => UserResponse.build(loginUser, userInfo).user))(ec).toIO).sequence.map(_.flatten)
+    UserResponse.getEmailAndPass(authHeader).map(loginUser => userRepo.verify(loginUser).map(maybeUserInfo => maybeUserInfo.map(userInfo => UserResponse.build(loginUser, userInfo).user))(ec).toIO) match {
+      case Some(value) => value
+      case None => IO.pure(None)
+    }
   }
 
     def authUser: Kleisli[IO, Request[IO],Either[CustomServerError,UserResponse]] = Kleisli { request: Request[IO] =>
-      val header: Option[Header.Raw] = request.headers.get(CIString("Authorization")).map(_.toRaw)
+      val header: Option[Header.Raw] = request.headers.get(CIString("Authorization")).map(_.head)
       header match {
         case Some(h) =>
           getAuthUserFromHeader(h.value).map(_.toRight(X))
@@ -69,8 +72,11 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         )
     }
   }
-  def authApp = AuthMiddleware(authUser, onAuthFailure)
+  def authMiddleware = AuthMiddleware(authUser, onAuthFailure)
 
+  val authApp: AuthedRoutes[UserResponse, IO] = AuthedRoutes.of{
+    case GET -> Root / "user" as user => Ok(user.asJson.noSpaces)
+  }
   def app =
     HttpRoutes
       .of[IO] {
@@ -109,17 +115,6 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
                         .noSpaces))
             }
 
-        case GET -> Root / "user" =>
-          Ok("""{
-        |  "user": {
-        |    "email": "string",
-        |    "token": "string",
-        |    "username": "string",
-        |    "bio": "string",
-        |    "image": "string"
-        |  }
-        |}""".stripMargin)
-
         case request @ PUT -> Root / "users" =>
           ???
         case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
@@ -139,9 +134,11 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
       }
 
   val corsConfig =
-    CORS.DefaultCORSConfig.copy(allowCredentials = true, allowedOrigins = _ => true)
+    CORSConfig.default
+      .withAllowCredentials(true)
+      .withAllowedOrigins(_ => true)
 
-  val httpApp = Router("/" -> app).orNotFound
+  val httpApp = Router("/" -> app, "/" -> authMiddleware(authApp)).orNotFound
   def run() = {
     BlazeServerBuilder[IO](ExecutionContext.global)
       .bindHttp(Conf.httpPort, Conf.httpHost)

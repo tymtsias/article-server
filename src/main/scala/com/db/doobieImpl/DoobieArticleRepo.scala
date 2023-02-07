@@ -15,6 +15,8 @@ import cats._
 import cats.implicits._
 import cats.effect._
 import cats.effect.implicits._
+import cats.effect.unsafe.implicits.global
+
 import scala.concurrent.Future
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
@@ -66,4 +68,6 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |""".stripMargin ++ condition ++ sql" offset ${offset} limit ${limit};"
     sqlToExecute.query[Article]
   }
+
+  def save (articleToCreate: Int) = ???
 }

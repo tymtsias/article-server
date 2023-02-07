@@ -3,7 +3,6 @@ package com.db
 import cats.effect._
 import doobie.Transactor
 import doobie.util.transactor.Transactor.Aux
-import com.Implicits.cs
 
 object TransactorUtils {
   val transactor: Aux[IO, Unit] = Transactor.fromDriverManager[IO](

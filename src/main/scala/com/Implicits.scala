@@ -1,6 +1,6 @@
 package com
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{IO}
 import com.models.{Article, ArticleModel, TagsResponse}
 import com.models.auth._
 import io.circe.{Decoder, Encoder}
@@ -11,8 +11,6 @@ import java.sql.Timestamp
 import scala.concurrent.{ExecutionContext, Future}
 
 object Implicits {
-  implicit val cs = ContextShift(IO.contextShift(ExecutionContext.global))
-  implicit val timer = IO.timer(ExecutionContext.global)
   implicit val loginUserDecoder: Decoder[LoginUser] = deriveDecoder
   implicit val newUserDecoder: Decoder[NewUser] = deriveDecoder
   implicit val userResponseEncoder: Encoder[UserResponse] = deriveEncoder

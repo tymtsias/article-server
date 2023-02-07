@@ -7,7 +7,7 @@ lazy val root = (project in file("."))
     name := "article-server"
   )
 
-val http4sVersion = "1.0.0-M2"
+val http4sVersion = "1.0.0-M29"
 resolvers += Resolver.sonatypeRepo("snapshots")
 libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-blaze-server" % http4sVersion,
@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-core" % http4sVersion,
   "org.http4s" %% "http4s-circe" % http4sVersion
 )
-val doobieVersion = "0.10.0"
+val doobieVersion = "1.0.0-M1"
 
 libraryDependencies ++= Seq(
   // Start with this one
