@@ -1,10 +1,11 @@
 package com.db
 
-import com.models.Article
+import com.models.{Article, CreateArticleModel, CreatingArticleAdditionalInfo}
 
 import scala.concurrent.Future
 
 trait ArticlesRepo {
+  def save (userEmail: String, req: CreateArticleModel): Future[CreatingArticleAdditionalInfo]
 
   def get(tag: Option[String],
           author: Option[String],

@@ -2,7 +2,7 @@ package com.db.doobieImpl
 
 import cats.effect.IO
 import com.db.ArticlesRepo
-import com.models.Article
+import com.models.{Article, CreateArticleModel, CreatingArticleAdditionalInfo}
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
 import doobie._
@@ -15,8 +15,10 @@ import cats._
 import cats.implicits._
 import cats.effect._
 import cats.effect.implicits._
-import cats.effect.unsafe.implicits.global
+import cats.effect.unsafe.implicits.{global => catsGlobal}
 
+import java.time.LocalDateTime
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
@@ -25,7 +27,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
                    favorited: Option[Boolean],
                    offset: Int,
                    limit: Int): Future[List[Article]] =
-    getQuery(tag, author, favorited, offset, limit).stream.compile.toList.transact(transactor).unsafeToFuture()
+    getQuery(tag, author, favorited, offset, limit).stream.compile.toList.transact(transactor).unsafeToFuture()(catsGlobal)
 
   def getQuery(tag: Option[String],
                author: Option[String],
@@ -69,5 +71,36 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
     sqlToExecute.query[Article]
   }
 
-  def save (articleToCreate: Int) = ???
+  def insertQuery(userEmail: String, req: CreateArticleModel, info: CreatingArticleAdditionalInfo) = {
+    val now = LocalDateTime.now()
+    sql"""insert
+         |	into
+         |	article (user_id,
+         |	slug,
+         |	title,
+         |	description,
+         |	body,
+         |	tag_list,
+         |	created_at,
+         |	updated_at,
+         |	favorited,
+         |	favorites_count,
+         |	"following")
+         |values ((select id from users where email= ${userEmail}),
+         |${info.slug},
+         |${req.title},
+         |${req.description},
+         |${req.body},
+         |${req.tagList},
+         |${info.date},
+         |${info.date},
+         |${info.favorited},
+         |${info.favoritesCount},
+         |${info.following});""".stripMargin
+  }.update
+
+  def save (userEmail: String, req: CreateArticleModel): Future[CreatingArticleAdditionalInfo] = {
+    val info = CreatingArticleAdditionalInfo("slug", LocalDateTime.now(), true, 0, true)
+    insertQuery(userEmail, req, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
+  }
 }

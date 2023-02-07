@@ -41,3 +41,4 @@ libraryDependencies ++= Seq(
 libraryDependencies += "io.jsonwebtoken" % "jjwt" % "0.9.1"
 libraryDependencies += "javax.xml.bind" % "jaxb-api" % "2.3.1"
 libraryDependencies += "com.typesafe" % "config" % "1.4.2"
+libraryDependencies += "org.slf4j" % "slf4j-jdk14" % "2.0.6"

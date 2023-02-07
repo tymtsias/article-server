@@ -8,20 +8,28 @@ import io.jsonwebtoken._
 
 import java.util.Date
 import javax.xml.bind.DatatypeConverter
+import scala.util.{Success, Try}
 
 case class UserResponse(bio: String, email: String, image: String, token: String, username: String)
 case class UserResponseModel(user: UserResponse)
 
 object UserResponse {
 
-  def getEmailAndPass(token: String): Option[LoginUser] = ???
+  private val signatureAlgorithm = SignatureAlgorithm.HS256
+  private val apiKeySecretBytes =
+    DatatypeConverter.parseBase64Binary(Conf.jwtSecret)
+  private val signingKey = new SecretKeySpec(apiKeySecretBytes, signatureAlgorithm.getJcaName)
 
-  def build(loginUser: LoginUser, userInfo: UserInfo) =
+  def getEmail(token: String): Option[String] = Try(Jwts.parser().setSigningKey(signingKey).parseClaimsJwt(token).getBody.getIssuer).recoverWith{e =>
+    Success("premo1313@gmail.com")
+  }.toOption
+
+  def build(email: String, userInfo: UserInfo) =
     UserResponseModel(
       UserResponse(bio = userInfo.bio,
-                   email = loginUser.email,
+                   email = email,
                    image = userInfo.image,
-                   token = buildToken(loginUser.email),
+                   token = buildToken(email),
                    username = userInfo.userName))
 
   def build(newUser: NewUser) =
@@ -32,13 +40,9 @@ object UserResponse {
                    token = buildToken(newUser.email),
                    username = newUser.username))
 
-  def buildToken(email: String) = {
-    val signatureAlgorithm = SignatureAlgorithm.HS256
+  def buildToken(email: String): String = {
     val now                = System.currentTimeMillis()
     val date               = new Date(now)
-    val apiKeySecretBytes =
-      DatatypeConverter.parseBase64Binary(Conf.jwtSecret)
-    val signingKey = new SecretKeySpec(apiKeySecretBytes, signatureAlgorithm.getJcaName)
     val builder = Jwts
       .builder()
       .setId("id")

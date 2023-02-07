@@ -9,4 +9,5 @@ case class Author(userInfo: UserInfo, following: Boolean)
 object Author {
   implicit val encoder: Encoder[Author] = (a: Author) =>
     a.userInfo.asJson.deepMerge(Json.obj("following" -> a.following.asJson))
+  def fromUserResponse(userResponse: UserResponse, following: Boolean) = Author(UserInfo(userResponse.bio, userResponse.username, userResponse.image), following)
 }
