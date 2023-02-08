@@ -118,12 +118,17 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
 
   val authApp: AuthedRoutes[UserResponse, IO] = AuthedRoutes.of {
     case GET -> Root / "user" as user => Ok(UserResponseModel(user).asJson.noSpaces)
-    case  req@POST -> Root / "articles" / "" as user =>
+    case req@POST -> Root / "articles" / "" as user =>
       req.req.decode[CreateArticleRequest] { req =>
         articleRepo.save(user.email, req.article).toIO.flatMap { info =>
           Created(CreatingArticleResponse.build(user, req.article, info).asJson.noSpaces)
         }
       }
+
+    case GET -> Root / "articles" / "feed" :? LimitQueryParamMatcher(limit) +& OffsetQueryParamMatcher(offset) as user =>
+      articleRepo.yourFeed(offset = offset, limit = limit, user.email).toIO.flatMap { articlesList =>
+      Ok(ArticleModel(articlesList, articlesList.size).asJson.noSpaces)
+    }
   }
   val corsConfig =
     CORSConfig.default

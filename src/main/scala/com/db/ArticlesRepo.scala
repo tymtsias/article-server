@@ -7,6 +7,7 @@ import scala.concurrent.Future
 trait ArticlesRepo {
   def save (userEmail: String, req: CreateArticleModel): Future[CreatingArticleAdditionalInfo]
 
+  def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]]
   def get(tag: Option[String],
           author: Option[String],
           favorited: Option[Boolean],

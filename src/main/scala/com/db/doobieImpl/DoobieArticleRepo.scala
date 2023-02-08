@@ -99,8 +99,37 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |${info.following});""".stripMargin
   }.update
 
+  def yourFeedQuery(limit: Int, offset: Int) = {
+    sql"""select
+         |	slug,
+         |	title,
+         |	description,
+         |	body,
+         |	tag_list,
+         |	created_at,
+         |	updated_at,
+         |	favorited,
+         |	favorites_count,
+         |	u.bio,
+         |	u.username,
+         |	u.image,
+         |	"following"
+         |from
+         |	article
+         |left join users u on
+         |	u.id = user_id
+         |where
+         |	"following" = true
+         |order by
+         |	updated_at desc
+         |         offset ${offset}
+         |limit ${limit};
+         """.stripMargin
+  }.query[Article]
   def save (userEmail: String, req: CreateArticleModel): Future[CreatingArticleAdditionalInfo] = {
     val info = CreatingArticleAdditionalInfo("slug", LocalDateTime.now(), true, 0, true)
     insertQuery(userEmail, req, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
   }
+
+  override def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]] = yourFeedQuery(offset = offset, limit = limit).stream.take(limit).compile.toList.transact(transactor).unsafeToFuture()
 }
