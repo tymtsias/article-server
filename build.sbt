@@ -37,7 +37,9 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-literal" % "0.15.0-M1"
 )
 
-
+scalacOptions ++= Seq(
+  "-Ywarn-unused",
+)
 libraryDependencies += "io.jsonwebtoken" % "jjwt" % "0.9.1"
 libraryDependencies += "javax.xml.bind" % "jaxb-api" % "2.3.1"
 libraryDependencies += "com.typesafe" % "config" % "1.4.2"

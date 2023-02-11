@@ -1,6 +1,7 @@
-package com.models
+package com.http.responses
 
-import com.models.auth.{Author, UserResponse}
+import com.models.auth.{Author, UserData}
+import com.models.{CreateArticleModel, CreatingArticleAdditionalInfo}
 
 import java.time.LocalDateTime
 
@@ -16,7 +17,7 @@ case class CreatingArticleResponse(slug: String,
                                    author: Author)
 
 object CreatingArticleResponse {
-  def build(userResponse: UserResponse,
+  def build(userResponse: UserData,
             articleModel: CreateArticleModel,
             creatingArticleAdditionalInfo: CreatingArticleAdditionalInfo): CreatingArticleResponse =
     CreatingArticleResponse(

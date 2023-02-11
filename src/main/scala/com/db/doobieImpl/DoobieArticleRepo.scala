@@ -5,21 +5,12 @@ import com.db.ArticlesRepo
 import com.models.{Article, CreateArticleModel, CreatingArticleAdditionalInfo}
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
-import doobie._
-import doobie.implicits._
 import doobie.implicits.javasql._
-import doobie.postgres._
 import doobie.postgres.implicits._
-import doobie.postgres.pgisimplicits._
-import cats._
-import cats.implicits._
-import cats.effect._
-import cats.effect.implicits._
 import cats.effect.unsafe.implicits.{global => catsGlobal}
 
 import java.time.LocalDateTime
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
   override def get(tag: Option[String],
@@ -71,8 +62,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
     sqlToExecute.query[Article]
   }
 
-  def insertQuery(userEmail: String, req: CreateArticleModel, info: CreatingArticleAdditionalInfo) = {
-    val now = LocalDateTime.now()
+  def insertQuery(userEmail: String, entity: CreateArticleModel, info: CreatingArticleAdditionalInfo) = {
     sql"""insert
          |	into
          |	article (user_id,
@@ -88,10 +78,10 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	"following")
          |values ((select id from users where email= ${userEmail}),
          |${info.slug},
-         |${req.title},
-         |${req.description},
-         |${req.body},
-         |${req.tagList},
+         |${entity.title},
+         |${entity.description},
+         |${entity.body},
+         |${entity.tagList},
          |${info.date},
          |${info.date},
          |${info.favorited},
@@ -126,9 +116,9 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |limit ${limit};
          """.stripMargin
   }.query[Article]
-  def save (userEmail: String, req: CreateArticleModel): Future[CreatingArticleAdditionalInfo] = {
+  def save (userEmail: String, entity: CreateArticleModel)(implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo] = {
     val info = CreatingArticleAdditionalInfo("slug", LocalDateTime.now(), true, 0, true)
-    insertQuery(userEmail, req, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
+    insertQuery(userEmail, entity, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
   }
 
   override def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]] = yourFeedQuery(offset = offset, limit = limit).stream.take(limit).compile.toList.transact(transactor).unsafeToFuture()

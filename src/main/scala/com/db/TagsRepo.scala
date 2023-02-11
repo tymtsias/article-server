@@ -1,9 +1,7 @@
 package com.db
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 trait TagsRepo {
-
-  def getAll(): Future[Set[String]]
-
+  def getAll()(implicit ec: ExecutionContext): Future[Set[String]]
 }

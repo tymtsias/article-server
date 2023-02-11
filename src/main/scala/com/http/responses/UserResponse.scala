@@ -1,18 +1,15 @@
-package com.models.auth
+package com.http.responses
 
 import com.Conf
-
-import javax.crypto.spec.SecretKeySpec
-import java.security.Key
-import io.jsonwebtoken._
+import com.models.auth.{NewUser, UserData, UserInfo}
+import io.jsonwebtoken.{Jwts, SignatureAlgorithm}
 
 import java.util.Date
+import javax.crypto.spec.SecretKeySpec
 import javax.xml.bind.DatatypeConverter
 import scala.util.{Success, Try}
 
-case class UserResponse(bio: String, email: String, image: String, token: String, username: String)
-case class UserResponseModel(user: UserResponse)
-
+case class UserResponse (user: UserData)
 object UserResponse {
 
   private val signatureAlgorithm = SignatureAlgorithm.HS256
@@ -25,20 +22,20 @@ object UserResponse {
   }.toOption
 
   def build(email: String, userInfo: UserInfo) =
-    UserResponseModel(
-      UserResponse(bio = userInfo.bio,
-                   email = email,
-                   image = userInfo.image,
-                   token = buildToken(email),
-                   username = userInfo.userName))
+    UserResponse(
+      UserData(bio = userInfo.bio,
+        email = email,
+        image = userInfo.image,
+        token = buildToken(email),
+        username = userInfo.userName))
 
   def build(newUser: NewUser) =
-    UserResponseModel(
-      UserResponse(bio = "",
-                   email = newUser.email,
-                   image = "",
-                   token = buildToken(newUser.email),
-                   username = newUser.username))
+    UserResponse(
+      UserData(bio = "",
+        email = newUser.email,
+        image = "",
+        token = buildToken(newUser.email),
+        username = newUser.username))
 
   def buildToken(email: String): String = {
     val now                = System.currentTimeMillis()

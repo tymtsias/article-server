@@ -4,6 +4,7 @@ import cats.effect.IOApp
 import com.db.TransactorUtils
 import com.db.doobieImpl.{DoobieArticleRepo, DoobieTagsRepo, DoobieUserRepo}
 import com.http.Http4sServer
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object Main extends IOApp {
   def run(args: List[String]) = {

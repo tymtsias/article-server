@@ -3,7 +3,6 @@ package com.models
 import com.models.auth.Author
 
 import java.sql.Timestamp
-import java.time.LocalDateTime
 
 case class Article(
                     slug: String,
