@@ -5,7 +5,7 @@ import com.models.{CreateArticleModel, CreatingArticleAdditionalInfo}
 
 import java.time.LocalDateTime
 
-case class CreatingArticleResponse(slug: String,
+case class CreatingArticleBody(slug: String,
                                    title: String,
                                    description: String,
                                    body: String,
@@ -16,11 +16,13 @@ case class CreatingArticleResponse(slug: String,
                                    favoritesCount: Int,
                                    author: Author)
 
+case class CreatingArticleResponse(article: CreatingArticleBody)
+
 object CreatingArticleResponse {
   def build(userResponse: UserData,
             articleModel: CreateArticleModel,
             creatingArticleAdditionalInfo: CreatingArticleAdditionalInfo): CreatingArticleResponse =
-    CreatingArticleResponse(
+    CreatingArticleResponse(CreatingArticleBody(
       slug = creatingArticleAdditionalInfo.slug,
       title = articleModel.title,
       description = articleModel.description,
@@ -31,5 +33,5 @@ object CreatingArticleResponse {
       favorited = creatingArticleAdditionalInfo.favorited,
       favoritesCount = creatingArticleAdditionalInfo.favoritesCount,
       author = Author.fromUserResponse(userResponse, creatingArticleAdditionalInfo.following)
-    )
+    ))
 }

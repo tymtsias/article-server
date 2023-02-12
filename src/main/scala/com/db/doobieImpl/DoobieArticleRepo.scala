@@ -10,6 +10,7 @@ import doobie.postgres.implicits._
 import cats.effect.unsafe.implicits.{global => catsGlobal}
 
 import java.time.LocalDateTime
+import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
@@ -18,7 +19,9 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
                    favorited: Option[Boolean],
                    offset: Int,
                    limit: Int): Future[List[Article]] =
-    getQuery(tag, author, favorited, offset, limit).stream.compile.toList.transact(transactor).unsafeToFuture()(catsGlobal)
+    getQuery(tag, author, favorited, offset, limit).stream.compile.toList
+      .transact(transactor)
+      .unsafeToFuture()(catsGlobal)
 
   def getQuery(tag: Option[String],
                author: Option[String],
@@ -40,25 +43,26 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       }
     }
 
-    val sqlToExecute = sql"""select
-         |  slug,
-         |  title,
-         |  description,
-         |  body,
-         |  tag_list,
-         |  created_at,
-         |  updated_at,
-         |  favorited,
-         |  favorites_count,
-         |  u.bio,
-         |  u.username,
-         |  u.image,
-         |  "following"
-         |from
-         |  article
-         |left join users u on
-         |  u.id = user_id
-         |""".stripMargin ++ condition ++ sql" offset ${offset} limit ${limit};"
+    val sqlToExecute = sql"""
+                            |	
+                            |select
+                            |  slug,
+                            |  title,
+                            |  description,
+                            |  body,
+                            |  tag_list,
+                            |  created_at,
+                            |  updated_at,
+                            |  (select count(*) from favorites f2 where f2.user_id = u.id and id = f2.article_id)::int::bool,
+                            |  favorites_count,
+                            |  u.bio,
+                            |  u.username,
+                            |  u.image,
+                            |  (select count(*) from followers f where f.follower = u.id and f.followed  = user_id)::int::bool
+                            |from	
+                            |  article
+                            |left join users u on
+                            |  u.id = user_id""".stripMargin ++ condition ++ sql" offset ${offset} limit ${limit};"
     sqlToExecute.query[Article]
   }
 
@@ -73,9 +77,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	tag_list,
          |	created_at,
          |	updated_at,
-         |	favorited,
-         |	favorites_count,
-         |	"following")
+         |	favorites_count)
          |values ((select id from users where email= ${userEmail}),
          |${info.slug},
          |${entity.title},
@@ -84,12 +86,10 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |${entity.tagList},
          |${info.date},
          |${info.date},
-         |${info.favorited},
-         |${info.favoritesCount},
-         |${info.following});""".stripMargin
+         |${info.favoritesCount});""".stripMargin
   }.update
 
-  def yourFeedQuery(limit: Int, offset: Int) = {
+  def yourFeedQuery(limit: Int, offset: Int, userEmail: String) = {
     sql"""select
          |	slug,
          |	title,
@@ -98,28 +98,35 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	tag_list,
          |	created_at,
          |	updated_at,
-         |	favorited,
+         |	(select count(*) from favorites f2 where f2.user_id = u2.id and id = f2.article_id)::int::bool,
          |	favorites_count,
          |	u.bio,
          |	u.username,
          |	u.image,
-         |	"following"
+         |	true
          |from
          |	article
-         |left join users u on
-         |	u.id = user_id
-         |where
-         |	"following" = true
+         |left join followers f on user_id = f.followed
+         |left join users u on u.id = f.follower
+         |left join users u2 on u2.email = $userEmail
+         |where f.follower = u2.id
          |order by
          |	updated_at desc
          |         offset ${offset}
          |limit ${limit};
          """.stripMargin
   }.query[Article]
-  def save (userEmail: String, entity: CreateArticleModel)(implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo] = {
-    val info = CreatingArticleAdditionalInfo("slug", LocalDateTime.now(), true, 0, true)
+  def save(userEmail: String, entity: CreateArticleModel)(
+      implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo] = {
+    val info = CreatingArticleAdditionalInfo(UUID.randomUUID().toString, LocalDateTime.now(), true, 0, true)
     insertQuery(userEmail, entity, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
   }
 
-  override def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]] = yourFeedQuery(offset = offset, limit = limit).stream.take(limit).compile.toList.transact(transactor).unsafeToFuture()
+  override def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]] =
+    yourFeedQuery(offset = offset, limit = limit, userEmail = userEmail).stream
+      .take(limit)
+      .compile
+      .toList
+      .transact(transactor)
+      .unsafeToFuture()
 }
