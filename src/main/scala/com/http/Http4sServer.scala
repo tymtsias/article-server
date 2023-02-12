@@ -53,7 +53,7 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
     val header: Option[Header.Raw] = request.headers.get(CIString("Authorization")).map(_.head)
     header match {
       case Some(h) =>
-        getAuthUserFromHeader(h.value).map(_.toRight(X))
+        getAuthUserFromHeader(h.value.drop(6)).map(_.toRight(X))
       case None =>
         IO(Left(X))
     }

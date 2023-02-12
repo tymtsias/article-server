@@ -40,6 +40,8 @@ libraryDependencies ++= Seq(
 scalacOptions ++= Seq(
   "-Ywarn-unused",
 )
+
+libraryDependencies += "com.auth0" % "java-jwt" % "4.2.2"
 libraryDependencies += "io.jsonwebtoken" % "jjwt" % "0.9.1"
 libraryDependencies += "javax.xml.bind" % "jaxb-api" % "2.3.1"
 libraryDependencies += "com.typesafe" % "config" % "1.4.2"
