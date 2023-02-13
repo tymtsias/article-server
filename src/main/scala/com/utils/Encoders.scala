@@ -1,6 +1,6 @@
 package com.utils
 
-import com.http.responses.{ArticlesResponse, CreatingArticleBody, CreatingArticleResponse, TagsResponse, UserResponse}
+import com.http.responses._
 import com.models.auth._
 import com.models.Article
 import io.circe.Encoder
@@ -21,5 +21,6 @@ object Encoders {
   implicit val creatingArticleResponseEncoder: Encoder[CreatingArticleResponse] = deriveEncoder
   implicit val creatingArticleBodyEncoder: Encoder[CreatingArticleBody] = deriveEncoder
   implicit val userResponseModelEncoder: Encoder[UserResponse] = deriveEncoder
+  implicit val commonArticleResponseEncoder : Encoder[CommonArticleResponse] = deriveEncoder
 
 }

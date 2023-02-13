@@ -14,4 +14,6 @@ trait ArticlesRepo {
           offset: Int,
           limit: Int): Future[List[Article]]
 
+  def find(slug: String, userEmail: Option[String]): Future[Option[Article]]
+
 }

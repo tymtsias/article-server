@@ -8,6 +8,8 @@ import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
 import cats.effect.unsafe.implicits.{global => catsGlobal}
+import doobie.implicits._
+
 
 import java.time.LocalDateTime
 import java.util.UUID
@@ -98,7 +100,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	tag_list,
          |	created_at,
          |	updated_at,
-         |	(select count(*) from favorites f2 where f2.user_id = u2.id and id = f2.article_id)::int::bool,
+         |	(select count(*) from favorites f2 where f2.user_id = u2.id and article_id = f2.article_id)::int::bool,
          |	favorites_count,
          |	u.bio,
          |	u.username,
@@ -129,4 +131,57 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       .toList
       .transact(transactor)
       .unsafeToFuture()
+
+  override def find(slug: String, userEmail: Option[String]): Future[Option[Article]] = {
+    val query  = userEmail match {
+      case Some(value) => findQueryForExistingUser(slug, value)
+      case None => findQuery(slug)
+    }
+    query.option.transact(transactor).unsafeToFuture()
+  }
+
+
+  def findQueryForExistingUser(slug: String, userEmail: String) = {
+    sql"""select
+         |	slug,
+         |	title,
+         |	description,
+         |	body,
+         |	tag_list,
+         |	created_at,
+         |	updated_at,
+         |	(select count(*) from favorites f2 where f2.user_id = (select id from users where email = $userEmail) and article_id = f2.article_id)::int::bool,
+         |	favorites_count,
+         |	u.bio,
+         |	u.username,
+         |	u.image,
+         |	(select count(*) from followers f1 where f1.follower = (select id from users where email = $userEmail) and f1.followed = user_id)::int::bool
+         |from
+         |	article
+         |left join users u on u.id = user_id
+         |where slug = $slug;
+   """.stripMargin
+  }.query[Article]
+
+  def findQuery(slug: String) = {
+    sql"""select
+         |	slug,
+         |	title,
+         |	description,
+         |	body,
+         |	tag_list,
+         |	created_at,
+         |	updated_at,
+         |	true,
+         |	favorites_count,
+         |	u.bio,
+         |	u.username,
+         |	u.image,
+         |	true
+         |from
+         |	article
+         |left join users u on u.id = f.follower
+         |where slug = $slug;
+     """.stripMargin
+  }.query[Article]
 }

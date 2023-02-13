@@ -4,9 +4,9 @@ import cats.data.Kleisli
 import cats.effect._
 import cats.implicits._
 import com.Conf
-import com.db.{ArticlesRepo, TagsRepo, UserRepo}
+import com.db.{ArticlesRepo, FavoritesRepo, TagsRepo, UserRepo}
 import com.http.requests.{CreateArticleRequest, LoginUserRequest, NewUserRequest}
-import com.http.responses.{ArticlesResponse, CreatingArticleResponse, TagsResponse, UserResponse}
+import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreatingArticleResponse, TagsResponse, UserResponse}
 import com.models.auth.UserData
 import com.utils.Decoders._
 import com.utils.Encoders._
@@ -35,7 +35,7 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
+class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
 
   def getAuthUserFromHeader(authHeader: String): IO[Option[UserData]] = {
     UserResponse.getEmail(authHeader).map { email =>
@@ -60,9 +60,9 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
   }
 
   def onAuthFailure: AuthedRoutes[CustomServerError, IO] = Kleisli { r =>
-    app.run(r.req)
+    authNotRequiredRoutes.run(r.req)
   }
-  val app = HttpRoutes.of[IO] {
+  val authNotRequiredRoutes = HttpRoutes.of[IO] {
     case request @ POST -> Root / "users" / "login" =>
       request
         .as[LoginUserRequest]
@@ -82,6 +82,11 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
             }
         }
 
+    case GET -> Root / "article" / slug =>
+      articleRepo.find(slug, None).toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
     case request @ POST -> Root / "users" =>
       request
         .as[NewUserRequest]
@@ -129,13 +134,41 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
       articleRepo.yourFeed(offset = offset, limit = limit, user.email).toIO.flatMap { articlesList =>
       Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
     }
+
+    case POST -> Root / "articles" / slug / "favorite" as user =>
+      val futureArticle = for {
+        _ <- favoritesRepo.favorite(slug = slug, email = user.email)
+        article <- articleRepo.find(slug, userEmail = Some(user.email))
+      } yield article
+
+      futureArticle.toIO.flatMap{
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
+
+
+    case GET -> Root / "article" / slug as user=>
+      articleRepo.find(slug, Some(user.email)).toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
+    case DELETE -> Root / "articles" / slug / "favorite" as user =>
+      val futureArticle = for {
+        _ <- favoritesRepo.unfavorite(slug = slug, email = user.email)
+        article <- articleRepo.find(slug, userEmail = Some(user.email))
+      } yield article
+
+      futureArticle.toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
   }
   val corsConfig =
     CORSConfig.default
       .withAllowCredentials(true)
       .withAllowedOrigins(_ => true)
 
-  val service = app <+> authMiddleware(authApp)
+  val service = authNotRequiredRoutes <+> authMiddleware(authApp)
   val httpApp = Router("/" -> service).orNotFound
   def run() = {
     BlazeServerBuilder[IO](ExecutionContext.global)

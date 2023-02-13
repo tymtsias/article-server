@@ -1,1 +1,5 @@
-package com.http.responses case class CommonArticleResponse ()
+package com.http.responses
+
+import com.models.Article
+
+case class CommonArticleResponse (article: Article)
