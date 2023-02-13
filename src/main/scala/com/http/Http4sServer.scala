@@ -146,7 +146,6 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         case None => IO(Response(NotFound.status))
       }
 
-
     case GET -> Root / "article" / slug as user=>
       articleRepo.find(slug, Some(user.email)).toIO.flatMap {
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
@@ -162,13 +161,22 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
         case None => IO(Response(NotFound.status))
       }
+
+    case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
+    favorited) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) as user =>
+      articleRepo
+        .get(user.email, tag, author, favorited, offset, limit)
+        .toIO
+        .flatMap { articlesList =>
+          Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
+        }
   }
   val corsConfig =
     CORSConfig.default
       .withAllowCredentials(true)
       .withAllowedOrigins(_ => true)
 
-  val service = authNotRequiredRoutes <+> authMiddleware(authApp)
+  val service =authMiddleware(authApp) <+>  authNotRequiredRoutes
   val httpApp = Router("/" -> service).orNotFound
   def run() = {
     BlazeServerBuilder[IO](ExecutionContext.global)

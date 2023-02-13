@@ -25,46 +25,46 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       .transact(transactor)
       .unsafeToFuture()(catsGlobal)
 
+  def condition(tag: Option[String],
+                author: Option[String],
+                favorited: Option[Boolean]) = {
+    if (tag.isEmpty && author.isEmpty && favorited.isEmpty) sql""
+    else {
+      val xC = if (tag.isDefined) tag.map(tag => sql"${tag} = any (a.tag_list) ").getOrElse(sql"") else sql""
+      val yCPrefix = if (tag.isDefined && author.isDefined) sql"and " else sql""
+      val yC = if (author.isDefined) author.map(author => sql"u.username = ${author} ").getOrElse(sql"") else sql""
+      val zCPrefix = if ((favorited.isDefined || tag.isDefined) && author.isDefined) sql"and " else sql""
+      val zC =
+        if (favorited.isDefined) favorited.map(favorited => sql"a.favorited = ${favorited} ").getOrElse(sql"")
+        else sql""
+      sql"where " ++ xC ++ yCPrefix ++ yC ++ zCPrefix ++ zC
+    }
+  }
   def getQuery(tag: Option[String],
                author: Option[String],
                favorited: Option[Boolean],
                offset: Int,
                limit: Int): doobie.Query0[Article] = {
 
-    def condition = {
-      if (tag.isEmpty && author.isEmpty && favorited.isEmpty) sql""
-      else {
-        val xC       = if (tag.isDefined) tag.map(tag => sql"${tag} = any (tag_list) ").getOrElse(sql"") else sql""
-        val yCPrefix = if (tag.isDefined && author.isDefined) sql"and " else sql""
-        val yC       = if (author.isDefined) author.map(author => sql"u.username = ${author} ").getOrElse(sql"") else sql""
-        val zCPrefix = if ((favorited.isDefined || tag.isDefined) && author.isDefined) sql"and " else sql""
-        val zC =
-          if (favorited.isDefined) favorited.map(favorited => sql"favorited = ${favorited} ").getOrElse(sql"")
-          else sql""
-        sql"where " ++ xC ++ yCPrefix ++ yC ++ zCPrefix ++ zC
-      }
-    }
-
     val sqlToExecute = sql"""
-                            |	
                             |select
-                            |  slug,
-                            |  title,
-                            |  description,
-                            |  body,
-                            |  tag_list,
-                            |  created_at,
-                            |  updated_at,
-                            |  (select count(*) from favorites f2 where f2.user_id = u.id and id = f2.article_id)::int::bool,
-                            |  favorites_count,
+                            |  a.slug,
+                            |  a.title,
+                            |  a.description,
+                            |  a.body,
+                            |  a.tag_list,
+                            |  a.created_at,
+                            |  a.updated_at,
+                            |  false,
+                            |  a.favorites_count,
                             |  u.bio,
                             |  u.username,
                             |  u.image,
-                            |  (select count(*) from followers f where f.follower = u.id and f.followed  = user_id)::int::bool
-                            |from	
-                            |  article
+                            |  false
+                            |from
+                            |  article a
                             |left join users u on
-                            |  u.id = user_id""".stripMargin ++ condition ++ sql" offset ${offset} limit ${limit};"
+                            |  u.id = user_id""".stripMargin ++ condition(tag, author, favorited) ++ sql" offset ${offset} limit ${limit};"
     sqlToExecute.query[Article]
   }
 
@@ -100,7 +100,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	tag_list,
          |	created_at,
          |	updated_at,
-         |	(select count(*) from favorites f2 where f2.user_id = u2.id and article_id = f2.article_id)::int::bool,
+         |	(select count(*) from favorites f2 where f2.user_id = u2.id and f2.article_id = article_id)::int::bool,
          |	favorites_count,
          |	u.bio,
          |	u.username,
@@ -184,4 +184,34 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |where slug = $slug;
      """.stripMargin
   }.query[Article]
+
+  override def get(userEmail: String, tag: Option[String], author: Option[String], favorited: Option[Boolean], offset: Int, limit: Int): Future[List[Article]] =
+    getForAuthUserQuery(userEmail, tag, author, favorited, offset, limit).stream.compile.toList
+      .transact(transactor)
+      .unsafeToFuture()(catsGlobal)
+
+  def getForAuthUserQuery(userEmail: String, tag: Option[String], author: Option[String], favorited: Option[Boolean], offset: Int, limit: Int) = {
+    val sqlToExecute = sql"""select distinct
+         |	a.slug,
+         |	a.title,
+         |	a.description,
+         |	a.body,
+         |	a.tag_list,
+         |	a.created_at,
+         |	a.updated_at,
+         |	(select count(*) from favorites f2 where f2.user_id = u2.id and f2.article_id = a.id)::int::bool,
+         |	a.favorites_count,
+         |	u.bio,
+         |	u.username,
+         |	u.image,
+         |	(select count(*) from followers f where f.follower = u2.id and f.followed = a.user_id)::int::bool
+         |from
+         |	article a
+         |left join followers f on user_id = f.followed
+         |left join users u on u.id = f.followed
+         |left join users u2 on u2.email = $userEmail
+         """.stripMargin ++ condition(tag, author, favorited) ++ sql""" order by updated_at desc offset ${offset} limit ${limit};"""
+
+    sqlToExecute.query[Article]
+  }
 }
