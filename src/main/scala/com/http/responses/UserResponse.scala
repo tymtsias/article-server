@@ -2,7 +2,7 @@ package com.http.responses
 
 import com.Conf
 import com.auth0.jwt.JWT
-import com.models.auth.{NewUser, UserData, UserInfo}
+import com.models.auth.{FullUser, NewUser, UserData, UserInfo}
 import io.jsonwebtoken.{Jwts, SignatureAlgorithm}
 
 import java.util.{Date, UUID}
@@ -37,6 +37,15 @@ object UserResponse {
         image = "",
         token = buildToken(newUser.email),
         username = newUser.username))
+
+
+  def build(fullUser: FullUser) =
+    UserResponse(
+      UserData(bio = fullUser.bio,
+        email = fullUser.email,
+        image = fullUser.image,
+        token = buildToken(fullUser.email),
+        username = fullUser.username))
 
   def buildToken(email: String): String = {
     val now                = System.currentTimeMillis()

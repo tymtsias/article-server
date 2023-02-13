@@ -5,7 +5,7 @@ import cats.effect._
 import cats.implicits._
 import com.Conf
 import com.db.{ArticlesRepo, FavoritesRepo, TagsRepo, UserRepo}
-import com.http.requests.{CreateArticleRequest, LoginUserRequest, NewUserRequest}
+import com.http.requests.{ChangeUserRequest, CreateArticleRequest, LoginUserRequest, NewUserRequest}
 import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreatingArticleResponse, TagsResponse, UserResponse}
 import com.models.auth.UserData
 import com.utils.Decoders._
@@ -82,7 +82,7 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
             }
         }
 
-    case GET -> Root / "article" / slug =>
+    case GET -> Root / "articles" / slug =>
       articleRepo.find(slug, None).toIO.flatMap {
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
         case None => IO(Response(NotFound.status))
@@ -103,7 +103,6 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
                     .noSpaces))
         }
 
-    case PUT -> Root / "users" => ???
     case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
           favorited) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) =>
       articleRepo
@@ -130,6 +129,12 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         }
       }
 
+    case request @ PUT -> Root / "user" as user => request.req.decode[ChangeUserRequest] {
+      userRequest => userRepo.update(userRequest.user, user.email).toIO.flatMap{ _ =>
+        Ok(UserResponse.build(userRequest.user).asJson.noSpaces)
+      }
+    }
+
     case GET -> Root / "articles" / "feed" :? LimitQueryParamMatcher(limit) +& OffsetQueryParamMatcher(offset) as user =>
       articleRepo.yourFeed(offset = offset, limit = limit, user.email).toIO.flatMap { articlesList =>
       Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
@@ -146,7 +151,7 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         case None => IO(Response(NotFound.status))
       }
 
-    case GET -> Root / "article" / slug as user=>
+    case GET -> Root / "articles" / slug as user=>
       articleRepo.find(slug, Some(user.email)).toIO.flatMap {
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
         case None => IO(Response(NotFound.status))

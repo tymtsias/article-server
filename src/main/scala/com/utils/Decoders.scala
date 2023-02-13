@@ -1,5 +1,5 @@
 package com.utils
-import com.http.requests.{CreateArticleRequest, LoginUserRequest, NewUserRequest}
+import com.http.requests.{ChangeUserRequest, CreateArticleRequest, LoginUserRequest, NewUserRequest}
 import com.models.auth._
 import com.models.CreateArticleModel
 import io.circe.Decoder
@@ -12,4 +12,6 @@ object Decoders {
   implicit val newUserModelDecoder: Decoder[NewUserRequest] = deriveDecoder
   implicit val createArticleModelDecoder: Decoder[CreateArticleModel] = deriveDecoder
   implicit val createArticleRequestDecoder: Decoder[CreateArticleRequest] = deriveDecoder
+  implicit val changeUserRequestDecoder: Decoder[ChangeUserRequest] = deriveDecoder
+  implicit val fullUserDecoder: Decoder[FullUser] = deriveDecoder
 }

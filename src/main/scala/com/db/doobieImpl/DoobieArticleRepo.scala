@@ -180,7 +180,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	true
          |from
          |	article
-         |left join users u on u.id = f.follower
+         |left join users u on u.id = user_id
          |where slug = $slug;
      """.stripMargin
   }.query[Article]

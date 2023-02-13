@@ -3,7 +3,7 @@ package com.db.doobieImpl
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import com.db.UserRepo
-import com.models.auth.{LoginUser, NewUser, UserData, UserInfo}
+import com.models.auth.{FullUser, LoginUser, NewUser, UserData, UserInfo}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
@@ -21,7 +21,10 @@ class DoobieUserRepo(transactor: Aux[IO, Unit]) extends UserRepo {
   override def verify(loginUser: LoginUser): Future[Option[UserInfo]] =
     verifyQuery(loginUser).stream.take(1L).compile.toList.map(l => l.headOption).transact(transactor).unsafeToFuture()
 
-  override def update(user: UserData): Future[Int] = ???
+
+  def updateQuery(user: FullUser, email: String) = sql"""update users set email = ${user.email}, "password" = ${user.password}, username = ${user.username}, bio = ${user.bio}, image = ${user.image} where email = $email;"""
+  override def update(user: FullUser, email: String): Future[Int] =
+    updateQuery(user, email).update.run.transact(transactor).unsafeToFuture()
 
   override def get(email: String): Future[Option[UserInfo]] = sql"SELECT bio, userName, image from users WHERE email = $email".query[UserInfo].option.transact(transactor).unsafeToFuture()
 }
