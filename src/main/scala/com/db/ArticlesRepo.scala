@@ -1,6 +1,6 @@
 package com.db
 
-import com.models.{Article, CreateArticleModel, CreatingArticleAdditionalInfo}
+import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -23,5 +23,11 @@ trait ArticlesRepo {
           limit: Int): Future[List[Article]]
 
   def find(slug: String, userEmail: Option[String]): Future[Option[Article]]
+
+  def update(changeArticle: ChangeArticle, slug: String): Future[Unit]
+
+  def delete(slug: String): Future[Unit]
+
+  def checkPermissions(slug: String, userEmail: String): Future[Boolean]
 
 }

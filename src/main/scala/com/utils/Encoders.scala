@@ -2,7 +2,7 @@ package com.utils
 
 import com.http.responses._
 import com.models.auth._
-import com.models.Article
+import com.models.{Article, Comment}
 import io.circe.Encoder
 import io.circe.generic.semiauto._
 import io.circe.syntax._
@@ -22,5 +22,7 @@ object Encoders {
   implicit val creatingArticleBodyEncoder: Encoder[CreatingArticleBody] = deriveEncoder
   implicit val userResponseModelEncoder: Encoder[UserResponse] = deriveEncoder
   implicit val commonArticleResponseEncoder : Encoder[CommonArticleResponse] = deriveEncoder
-
+  implicit val getCommentsResponseEncoder: Encoder[GetCommentsResponse] = deriveEncoder
+  implicit val commentEncoder: Encoder[Comment] = deriveEncoder
+  implicit val createCommentResponseEncoder: Encoder[CreateCommentResponse] = deriveEncoder
 }

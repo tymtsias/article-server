@@ -28,7 +28,7 @@ object UserResponse {
         email = email,
         image = userInfo.image,
         token = buildToken(email),
-        username = userInfo.userName))
+        username = userInfo.username))
 
   def build(newUser: NewUser) =
     UserResponse(

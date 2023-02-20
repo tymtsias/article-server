@@ -2,7 +2,7 @@ package com.db.doobieImpl
 
 import cats.effect.IO
 import com.db.ArticlesRepo
-import com.models.{Article, CreateArticleModel, CreatingArticleAdditionalInfo}
+import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
@@ -10,10 +10,10 @@ import doobie.postgres.implicits._
 import cats.effect.unsafe.implicits.{global => catsGlobal}
 import doobie.implicits._
 
-
 import java.time.LocalDateTime
 import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
+import scala.reflect.internal.NoPhase.description
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
   override def get(tag: Option[String],
@@ -214,4 +214,20 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
 
     sqlToExecute.query[Article]
   }
+
+  def updateArticleQuery(title: String, description: String, body: String, slug: String) = {
+    sql"""update article set title = $title, description = $description, body = $body, updated_at = ${LocalDateTime.now()} where slug = $slug;""".update
+  }
+
+  override def update(changeArticle: ChangeArticle, slug: String) =
+    updateArticleQuery(changeArticle.title, changeArticle.description, changeArticle.body, slug).run.transact(transactor).map(_ => ()).unsafeToFuture()
+
+  def deleteArticleQuery(slug: String) = sql"""delete from article where slug = $slug;""".update
+
+  override def delete(slug: String) = deleteArticleQuery(slug).run.transact(transactor).map(_ => ()).unsafeToFuture()
+
+  def checkPermissionsQuery(slug: String, userEmail: String) =
+    sql"""select 1488 from article where slug = $slug and user_id = (select id from users where email = $userEmail);""".query[Int]
+  override def checkPermissions(slug: String, userEmail: String): Future[Boolean] =
+    checkPermissionsQuery(slug, userEmail).option.transact(transactor).map(_.isDefined).unsafeToFuture()
 }

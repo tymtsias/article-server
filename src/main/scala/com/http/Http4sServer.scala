@@ -4,9 +4,10 @@ import cats.data.Kleisli
 import cats.effect._
 import cats.implicits._
 import com.Conf
-import com.db.{ArticlesRepo, FavoritesRepo, TagsRepo, UserRepo}
-import com.http.requests.{ChangeUserRequest, CreateArticleRequest, LoginUserRequest, NewUserRequest}
-import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreatingArticleResponse, TagsResponse, UserResponse}
+import com.db.{ArticlesRepo, CommentsRepo, FavoritesRepo, TagsRepo, UserRepo}
+import com.http.requests.{ChangeArticleRequest, ChangeUserRequest, CreateArticleRequest, CreateCommentRequest, LoginUserRequest, NewUserRequest}
+import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreateCommentResponse, CreatingArticleResponse, GetCommentsResponse, TagsResponse, UserResponse}
+import com.models.ChangeArticle
 import com.models.auth.UserData
 import com.utils.Decoders._
 import com.utils.Encoders._
@@ -35,7 +36,7 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
+class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo, commentsRepo: CommentsRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
 
   def getAuthUserFromHeader(authHeader: String): IO[Option[UserData]] = {
     UserResponse.getEmail(authHeader).map { email =>
@@ -63,6 +64,11 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
     authNotRequiredRoutes.run(r.req)
   }
   val authNotRequiredRoutes = HttpRoutes.of[IO] {
+    case GET -> Root / "articles" / slug / "comments" => {
+      commentsRepo.get(slug, None).toIO.flatMap { comments =>
+        Ok(GetCommentsResponse(comments).asJson.noSpaces)
+      }
+    }
     case request @ POST -> Root / "users" / "login" =>
       request
         .as[LoginUserRequest]
@@ -151,11 +157,48 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         case None => IO(Response(NotFound.status))
       }
 
-    case GET -> Root / "articles" / slug as user=>
+    case GET -> Root / "articles" / slug as user =>
       articleRepo.find(slug, Some(user.email)).toIO.flatMap {
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
         case None => IO(Response(NotFound.status))
       }
+    case request @ PUT -> Root / "articles" / slug as user => {
+      request.req.decode[ChangeArticleRequest] { req =>
+        articleRepo.checkPermissions(slug, user.email).toIO.flatMap{ allowed =>
+          if (allowed) articleRepo.update(req.article, slug).flatMap(_ => articleRepo.find(slug, Some(user.email))).toIO.flatMap{
+            case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+            case None => IO(Response(NotFound.status))
+          }
+          else IO(Response(Unauthorized))
+        }
+      }
+    }
+    case DELETE -> Root / "articles" / slug as user => {
+      articleRepo.checkPermissions(slug, user.email).toIO.flatMap{ allowed =>
+        if (allowed) articleRepo.delete(slug).toIO.flatMap(_ => Ok())
+        else IO(Response(Unauthorized))
+      }
+    }
+
+    case GET -> Root / "articles" / slug / "comments"  as user => {
+      commentsRepo.get(slug, Some(user.email)).toIO.flatMap{comments =>
+        Ok(GetCommentsResponse(comments).asJson.noSpaces)
+      }
+    }
+    case request @ POST -> Root / "articles" / slug / "comments" as user => {
+      request.req.decode[CreateCommentRequest]{body =>
+        commentsRepo.create(slug, body.comment.body, user.email).toIO.flatMap{comment =>
+          Ok(CreateCommentResponse(comment).asJson.noSpaces)
+        }
+      }
+    }
+    case DELETE -> Root / "articles" / slug / "comments" / IntVar(id) as user => {
+      commentsRepo.delete(id, user.email).toIO.flatMap{
+        case true => Ok()
+        case false => IO(Response(Unauthorized))
+      }
+    }
+
     case DELETE -> Root / "articles" / slug / "favorite" as user =>
       val futureArticle = for {
         _ <- favoritesRepo.unfavorite(slug = slug, email = user.email)
