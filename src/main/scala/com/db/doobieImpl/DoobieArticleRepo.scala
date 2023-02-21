@@ -2,18 +2,17 @@ package com.db.doobieImpl
 
 import cats.effect.IO
 import com.db.ArticlesRepo
-import com.models.{ Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo }
-import doobie.implicits._
+import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
 import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
-import cats.effect.unsafe.implicits.{ global => catsGlobal }
+import cats.effect.unsafe.implicits.{global => catsGlobal}
 import doobie.implicits._
+import doobie.util.log.LogHandler
 
 import java.time.LocalDateTime
 import java.util.UUID
-import scala.concurrent.{ ExecutionContext, Future }
-import scala.reflect.internal.NoPhase.description
+import scala.concurrent.{ExecutionContext, Future}
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
   override def get(tag: Option[String],
@@ -63,7 +62,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
                             |  article a
                             |left join users u on
                             |  u.id = user_id""".stripMargin ++ condition(tag, author, favorited) ++ sql" offset ${offset} limit ${limit};"
-    sqlToExecute.query[Article]
+    sqlToExecute.queryWithLogHandler[Article](LogHandler.jdkLogHandler)
   }
 
   def insertQuery(userEmail: String, entity: CreateArticleModel, info: CreatingArticleAdditionalInfo) = {
@@ -214,12 +213,11 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |	(select count(*) from followers f where f.follower = u2.id and f.followed = a.user_id)::int::bool
          |from
          |	article a
-         |left join followers f on user_id = f.followed
-         |left join users u on u.id = f.followed
+         |left join users u on u.id = user_id
          |left join users u2 on u2.email = $userEmail
          """.stripMargin ++ condition(tag, author, favorited) ++ sql""" order by updated_at desc offset ${offset} limit ${limit};"""
 
-    sqlToExecute.query[Article]
+    sqlToExecute.queryWithLogHandler[Article](LogHandler.jdkLogHandler)
   }
 
   def updateArticleQuery(title: String, description: String, body: String, slug: String) = {

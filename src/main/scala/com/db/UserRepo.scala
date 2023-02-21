@@ -1,15 +1,15 @@
 package com.db
 
-import com.models.auth.{ FullUser, LoginUser, NewUser, UserData, UserInfo }
+import com.models.auth.{FullUser, LoginUser, NewUser, UserData, UserInfo, UserWithEncryptedPassword}
 
 import scala.concurrent.Future
 
 trait UserRepo {
 
   def get(email: String): Future[Option[UserInfo]]
-  def save(user: NewUser): Future[Int]
+  def save(user: UserWithEncryptedPassword): Future[Int]
 
-  def verify(loginUser: LoginUser): Future[Option[UserInfo]]
+  def getHash(email: String): Future[String]
 
   def update(user: FullUser, email: String): Future[Int]
 

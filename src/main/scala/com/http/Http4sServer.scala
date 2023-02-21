@@ -4,30 +4,15 @@ import cats.data.Kleisli
 import cats.effect._
 import cats.implicits._
 import com.Conf
-import com.db.{ ArticlesRepo, CommentsRepo, FavoritesRepo, FollowRepo, TagsRepo, UserRepo }
-import com.http.requests.{
-  ChangeArticleRequest,
-  ChangeUserRequest,
-  CreateArticleRequest,
-  CreateCommentRequest,
-  LoginUserRequest,
-  NewUserRequest
-}
-import com.http.responses.{
-  ArticlesResponse,
-  CommonArticleResponse,
-  CreateCommentResponse,
-  CreatingArticleResponse,
-  GetCommentsResponse,
-  TagsResponse,
-  UserProfileResponse,
-  UserResponse
-}
+import com.db.{ArticlesRepo, CommentsRepo, FavoritesRepo, FollowRepo, TagsRepo, UserRepo}
+import com.http.requests.{ChangeArticleRequest, ChangeUserRequest, CreateArticleRequest, CreateCommentRequest, LoginUserRequest, NewUserRequest}
+import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreateCommentResponse, CreatingArticleResponse, GetCommentsResponse, TagsResponse, UserProfileResponse, UserResponse}
 import com.models.ChangeArticle
-import com.models.auth.UserData
+import com.models.auth.{UserData, UserWithEncryptedPassword}
 import com.utils.Decoders._
 import com.utils.Encoders._
 import com.utils.Implicits._
+import com.utils.PasswordManager
 import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
@@ -36,7 +21,7 @@ import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware._
-import org.http4s.server.{ AuthMiddleware, Router }
+import org.http4s.server.{AuthMiddleware, Router}
 import org.typelevel.ci.CIString
 
 import scala.concurrent.ExecutionContext
@@ -96,18 +81,23 @@ class Http4sServer(userRepo: UserRepo,
         .as[LoginUserRequest]
         .flatMap { loginUser =>
           userRepo
-            .verify(loginUser.user)
+            .getHash(loginUser.user.email)
             .toIO
-            .flatMap {
-              case Some(userInfo) =>
-                Ok(
-                  UserResponse
-                    .build(loginUser.user.email, userInfo)
-                    .asJson
-                    .noSpaces
-                )
-              case None =>
-                IO(Response(status = Unauthorized.status))
+            .flatMap { hash =>
+              val passwordIsMatched = PasswordManager.checkPassword(loginUser.user.password, hash)
+              if (passwordIsMatched) {
+                userRepo.get(loginUser.user.email).toIO.flatMap{
+                  case Some(userInfo) => Ok(
+                    UserResponse
+                      .build(loginUser.user.email, userInfo)
+                      .asJson
+                      .noSpaces
+                  )
+                  case None => IO(Response(InternalServerError))
+                }
+              } else {
+                IO(Response(Unauthorized))
+              }
             }
         }
 
@@ -126,7 +116,7 @@ class Http4sServer(userRepo: UserRepo,
         .as[NewUserRequest]
         .flatMap { newUser =>
           userRepo
-            .save(newUser.user)
+            .save(UserWithEncryptedPassword.encrypt(newUser.user))
             .toIO
             .flatMap(
               _ =>
@@ -265,6 +255,7 @@ class Http4sServer(userRepo: UserRepo,
     case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
           favorited
         ) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) as user =>
+      println(s"user = ${user}")
       articleRepo
         .get(user.email, tag, author, favorited, offset, limit)
         .toIO
