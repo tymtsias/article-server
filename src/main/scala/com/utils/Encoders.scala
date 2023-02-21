@@ -25,4 +25,6 @@ object Encoders {
   implicit val getCommentsResponseEncoder: Encoder[GetCommentsResponse] = deriveEncoder
   implicit val commentEncoder: Encoder[Comment] = deriveEncoder
   implicit val createCommentResponseEncoder: Encoder[CreateCommentResponse] = deriveEncoder
+  implicit val userProfileResponseEncoder: Encoder[UserProfileResponse] = deriveEncoder
+
 }

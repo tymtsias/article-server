@@ -4,9 +4,9 @@ import cats.data.Kleisli
 import cats.effect._
 import cats.implicits._
 import com.Conf
-import com.db.{ArticlesRepo, CommentsRepo, FavoritesRepo, TagsRepo, UserRepo}
+import com.db.{ArticlesRepo, CommentsRepo, FavoritesRepo, FollowRepo, TagsRepo, UserRepo}
 import com.http.requests.{ChangeArticleRequest, ChangeUserRequest, CreateArticleRequest, CreateCommentRequest, LoginUserRequest, NewUserRequest}
-import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreateCommentResponse, CreatingArticleResponse, GetCommentsResponse, TagsResponse, UserResponse}
+import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreateCommentResponse, CreatingArticleResponse, GetCommentsResponse, TagsResponse, UserProfileResponse, UserResponse}
 import com.models.ChangeArticle
 import com.models.auth.UserData
 import com.utils.Decoders._
@@ -36,7 +36,7 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo, commentsRepo: CommentsRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
+class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo, commentsRepo: CommentsRepo, followRepo: FollowRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
 
   def getAuthUserFromHeader(authHeader: String): IO[Option[UserData]] = {
     UserResponse.getEmail(authHeader).map { email =>
@@ -88,6 +88,11 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
             }
         }
 
+    case GET -> Root / "profiles" / username => {
+      followRepo.get(username, None).toIO.flatMap { userProfile =>
+        Ok(UserProfileResponse(userProfile).asJson.noSpaces)
+      }
+    }
     case GET -> Root / "articles" / slug =>
       articleRepo.find(slug, None).toIO.flatMap {
         case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
@@ -196,6 +201,26 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
       commentsRepo.delete(id, user.email).toIO.flatMap{
         case true => Ok()
         case false => IO(Response(Unauthorized))
+      }
+    }
+
+    case GET -> Root / "profiles" / username as user => {
+      followRepo.get(username, Some(user.username)).toIO.flatMap {userProfile =>
+        Ok(UserProfileResponse(userProfile).asJson.noSpaces)
+      }
+    }
+    case POST -> Root / "profiles" / username / "follow" as user => {
+      followRepo.follow(followed = username, follower = user.username).toIO.flatMap{ _ =>
+        followRepo.get(username, Some(user.username)).toIO.flatMap { userProfile =>
+          Ok(UserProfileResponse(userProfile).asJson.noSpaces)
+        }
+      }
+    }
+    case DELETE -> Root / "profiles" / username / "follow" as user => {
+      followRepo.unfollow(followed = username, follower = user.username).toIO.flatMap { _ =>
+        followRepo.get(username, Some(user.username)).toIO.flatMap { userProfile =>
+          Ok(UserProfileResponse(userProfile).asJson.noSpaces)
+        }
       }
     }
 
