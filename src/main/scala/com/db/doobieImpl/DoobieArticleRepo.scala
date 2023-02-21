@@ -2,17 +2,17 @@ package com.db.doobieImpl
 
 import cats.effect.IO
 import com.db.ArticlesRepo
-import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
+import com.models.{ Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo }
 import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
-import cats.effect.unsafe.implicits.{global => catsGlobal}
+import cats.effect.unsafe.implicits.{ global => catsGlobal }
 import doobie.implicits._
 import doobie.util.log.LogHandler
 
 import java.time.LocalDateTime
 import java.util.UUID
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
   override def get(tag: Option[String],

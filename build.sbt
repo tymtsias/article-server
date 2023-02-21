@@ -47,3 +47,6 @@ libraryDependencies += "javax.xml.bind" % "jaxb-api" % "2.3.1"
 libraryDependencies += "com.typesafe" % "config" % "1.4.2"
 libraryDependencies += "org.slf4j" % "slf4j-jdk14" % "2.0.6"
 libraryDependencies += "at.favre.lib" % "bcrypt" % "0.10.2"
+
+// https://mvnrepository.com/artifact/com.typesafe.akka/akka-http
+libraryDependencies += "com.typesafe.akka" %% "akka-http" % "10.2.10"

@@ -1,6 +1,6 @@
 package com.db
 
-import com.models.auth.{FullUser, LoginUser, NewUser, UserData, UserInfo, UserWithEncryptedPassword}
+import com.models.auth.{ FullUser, LoginUser, NewUser, UserData, UserInfo, UserWithEncryptedPassword }
 
 import scala.concurrent.Future
 

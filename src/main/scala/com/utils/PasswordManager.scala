@@ -6,6 +6,7 @@ object PasswordManager {
 
   def toHash(password: String): String = BCrypt.withDefaults().hashToString(12, password.toCharArray)
 
-  def checkPassword(password: String, hash: String): Boolean = BCrypt.verifyer().verify(password.toCharArray, hash).verified
+  def checkPassword(password: String, hash: String): Boolean =
+    BCrypt.verifyer().verify(password.toCharArray, hash).verified
 
 }
