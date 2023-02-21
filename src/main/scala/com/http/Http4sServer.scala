@@ -255,7 +255,6 @@ class Http4sServer(userRepo: UserRepo,
     case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
           favorited
         ) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) as user =>
-      println(s"user = ${user}")
       articleRepo
         .get(user.email, tag, author, favorited, offset, limit)
         .toIO
