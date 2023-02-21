@@ -2,11 +2,16 @@ package com.http
 
 import cats.data.Kleisli
 import cats.effect._
+import cats.implicits._
 import com.Conf
-import com.Implicits._
-import com.db.{ArticlesRepo, TagsRepo, UserRepo}
-import com.models.auth.{LoginUserModel, NewUserModel, UserResponse, UserResponseModel}
-import com.models.{ArticleModel, CreateArticleModel, CreateArticleRequest, CreatingArticleResponse, TagsResponse}
+import com.db.{ArticlesRepo, CommentsRepo, FavoritesRepo, TagsRepo, UserRepo}
+import com.http.requests.{ChangeArticleRequest, ChangeUserRequest, CreateArticleRequest, CreateCommentRequest, LoginUserRequest, NewUserRequest}
+import com.http.responses.{ArticlesResponse, CommonArticleResponse, CreateCommentResponse, CreatingArticleResponse, GetCommentsResponse, TagsResponse, UserResponse}
+import com.models.ChangeArticle
+import com.models.auth.UserData
+import com.utils.Decoders._
+import com.utils.Encoders._
+import com.utils.Implicits._
 import io.circe.syntax._
 import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
@@ -17,8 +22,6 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware._
 import org.http4s.server.{AuthMiddleware, Router}
 import org.typelevel.ci.CIString
-import cats.syntax._
-import cats.implicits._
 
 import scala.concurrent.ExecutionContext
 object TagQueryParamMatcher extends OptionalQueryParamDecoderMatcher[String]("tag")
@@ -33,14 +36,13 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo) extends Http4sDsl[IO] {
-  val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: TagsRepo, favoritesRepo: FavoritesRepo, commentsRepo: CommentsRepo)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
 
-  def getAuthUserFromHeader(authHeader: String): IO[Option[UserResponseModel]] = {
+  def getAuthUserFromHeader(authHeader: String): IO[Option[UserData]] = {
     UserResponse.getEmail(authHeader).map { email =>
       userRepo
         .get(email)
-        .map(maybeUserInfo => maybeUserInfo.map(userInfo => UserResponse.build(email, userInfo)))(ec)
+        .map(maybeUserInfo => maybeUserInfo.map(userInfo => UserResponse.build(email, userInfo).user))(ec)
         .toIO
     } match {
       case Some(value) => value
@@ -48,23 +50,28 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
     }
   }
 
-  def authUser: Kleisli[IO, Request[IO], Either[CustomServerError, UserResponse]] = Kleisli { request: Request[IO] =>
+  def authUser: Kleisli[IO, Request[IO], Either[CustomServerError, UserData]] = Kleisli { request: Request[IO] =>
     val header: Option[Header.Raw] = request.headers.get(CIString("Authorization")).map(_.head)
     header match {
       case Some(h) =>
-        getAuthUserFromHeader(h.value).map(_.map(_.user).toRight(X))
+        getAuthUserFromHeader(h.value.drop(6)).map(_.toRight(X))
       case None =>
         IO(Left(X))
     }
   }
 
   def onAuthFailure: AuthedRoutes[CustomServerError, IO] = Kleisli { r =>
-    app.run(r.req)
+    authNotRequiredRoutes.run(r.req)
   }
-  val app = HttpRoutes.of[IO] {
+  val authNotRequiredRoutes = HttpRoutes.of[IO] {
+    case GET -> Root / "articles" / slug / "comments" => {
+      commentsRepo.get(slug, None).toIO.flatMap { comments =>
+        Ok(GetCommentsResponse(comments).asJson.noSpaces)
+      }
+    }
     case request @ POST -> Root / "users" / "login" =>
       request
-        .as[LoginUserModel]
+        .as[LoginUserRequest]
         .flatMap { loginUser =>
           userRepo
             .verify(loginUser.user)
@@ -81,9 +88,14 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
             }
         }
 
+    case GET -> Root / "articles" / slug =>
+      articleRepo.find(slug, None).toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
     case request @ POST -> Root / "users" =>
       request
-        .as[NewUserModel]
+        .as[NewUserRequest]
         .flatMap { newUser =>
           userRepo
             .save(newUser.user)
@@ -97,15 +109,13 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
                     .noSpaces))
         }
 
-    case request @ PUT -> Root / "users" =>
-      ???
     case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
           favorited) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) =>
       articleRepo
         .get(tag, author, favorited, offset, limit)
         .toIO
         .flatMap { articlesList =>
-          Ok(ArticleModel(articlesList, articlesList.size).asJson.noSpaces)
+          Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
         }
 
     case GET -> Root / "tags" =>
@@ -116,8 +126,8 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
   }
   def authMiddleware = AuthMiddleware(authUser, onAuthFailure)
 
-  val authApp: AuthedRoutes[UserResponse, IO] = AuthedRoutes.of {
-    case GET -> Root / "user" as user => Ok(UserResponseModel(user).asJson.noSpaces)
+  val authApp: AuthedRoutes[UserData, IO] = AuthedRoutes.of {
+    case GET -> Root / "user" as user => Ok(UserResponse(user).asJson.noSpaces)
     case req@POST -> Root / "articles" / "" as user =>
       req.req.decode[CreateArticleRequest] { req =>
         articleRepo.save(user.email, req.article).toIO.flatMap { info =>
@@ -125,17 +135,96 @@ class Http4sServer(userRepo: UserRepo, articleRepo: ArticlesRepo, tagsRepo: Tags
         }
       }
 
+    case request @ PUT -> Root / "user" as user => request.req.decode[ChangeUserRequest] {
+      userRequest => userRepo.update(userRequest.user, user.email).toIO.flatMap{ _ =>
+        Ok(UserResponse.build(userRequest.user).asJson.noSpaces)
+      }
+    }
+
     case GET -> Root / "articles" / "feed" :? LimitQueryParamMatcher(limit) +& OffsetQueryParamMatcher(offset) as user =>
       articleRepo.yourFeed(offset = offset, limit = limit, user.email).toIO.flatMap { articlesList =>
-      Ok(ArticleModel(articlesList, articlesList.size).asJson.noSpaces)
+      Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
     }
+
+    case POST -> Root / "articles" / slug / "favorite" as user =>
+      val futureArticle = for {
+        _ <- favoritesRepo.favorite(slug = slug, email = user.email)
+        article <- articleRepo.find(slug, userEmail = Some(user.email))
+      } yield article
+
+      futureArticle.toIO.flatMap{
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
+
+    case GET -> Root / "articles" / slug as user =>
+      articleRepo.find(slug, Some(user.email)).toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
+    case request @ PUT -> Root / "articles" / slug as user => {
+      request.req.decode[ChangeArticleRequest] { req =>
+        articleRepo.checkPermissions(slug, user.email).toIO.flatMap{ allowed =>
+          if (allowed) articleRepo.update(req.article, slug).flatMap(_ => articleRepo.find(slug, Some(user.email))).toIO.flatMap{
+            case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+            case None => IO(Response(NotFound.status))
+          }
+          else IO(Response(Unauthorized))
+        }
+      }
+    }
+    case DELETE -> Root / "articles" / slug as user => {
+      articleRepo.checkPermissions(slug, user.email).toIO.flatMap{ allowed =>
+        if (allowed) articleRepo.delete(slug).toIO.flatMap(_ => Ok())
+        else IO(Response(Unauthorized))
+      }
+    }
+
+    case GET -> Root / "articles" / slug / "comments"  as user => {
+      commentsRepo.get(slug, Some(user.email)).toIO.flatMap{comments =>
+        Ok(GetCommentsResponse(comments).asJson.noSpaces)
+      }
+    }
+    case request @ POST -> Root / "articles" / slug / "comments" as user => {
+      request.req.decode[CreateCommentRequest]{body =>
+        commentsRepo.create(slug, body.comment.body, user.email).toIO.flatMap{comment =>
+          Ok(CreateCommentResponse(comment).asJson.noSpaces)
+        }
+      }
+    }
+    case DELETE -> Root / "articles" / slug / "comments" / IntVar(id) as user => {
+      commentsRepo.delete(id, user.email).toIO.flatMap{
+        case true => Ok()
+        case false => IO(Response(Unauthorized))
+      }
+    }
+
+    case DELETE -> Root / "articles" / slug / "favorite" as user =>
+      val futureArticle = for {
+        _ <- favoritesRepo.unfavorite(slug = slug, email = user.email)
+        article <- articleRepo.find(slug, userEmail = Some(user.email))
+      } yield article
+
+      futureArticle.toIO.flatMap {
+        case Some(article) => Ok(CommonArticleResponse(article).asJson.noSpaces)
+        case None => IO(Response(NotFound.status))
+      }
+
+    case GET -> Root / "articles" :? TagQueryParamMatcher(tag) +& AuthorQueryParamMatcher(author) +& FavoriedQueryParamMatcher(
+    favorited) +& OffsetQueryParamMatcher(offset) +& LimitQueryParamMatcher(limit) as user =>
+      articleRepo
+        .get(user.email, tag, author, favorited, offset, limit)
+        .toIO
+        .flatMap { articlesList =>
+          Ok(ArticlesResponse(articlesList, articlesList.size).asJson.noSpaces)
+        }
   }
   val corsConfig =
     CORSConfig.default
       .withAllowCredentials(true)
       .withAllowedOrigins(_ => true)
 
-  val service = app <+> authMiddleware(authApp)
+  val service =authMiddleware(authApp) <+>  authNotRequiredRoutes
   val httpApp = Router("/" -> service).orNotFound
   def run() = {
     BlazeServerBuilder[IO](ExecutionContext.global)

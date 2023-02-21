@@ -1,6 +1,6 @@
 package com.db
 
-import com.models.auth.{LoginUser, NewUser, UserInfo, UserResponse}
+import com.models.auth.{FullUser, LoginUser, NewUser, UserData, UserInfo}
 
 import scala.concurrent.Future
 
@@ -11,6 +11,7 @@ trait UserRepo {
 
   def verify(loginUser: LoginUser): Future[Option[UserInfo]]
 
-  def update(user: UserResponse): Future[Int]
+  def update(user: FullUser, email: String): Future[Int]
+
 
 }
