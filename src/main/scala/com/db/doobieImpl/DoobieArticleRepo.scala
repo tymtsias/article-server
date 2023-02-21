@@ -2,17 +2,17 @@ package com.db.doobieImpl
 
 import cats.effect.IO
 import com.db.ArticlesRepo
-import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
+import com.models.{ Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo }
 import doobie.implicits._
 import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
-import cats.effect.unsafe.implicits.{global => catsGlobal}
+import cats.effect.unsafe.implicits.{ global => catsGlobal }
 import doobie.implicits._
 
 import java.time.LocalDateTime
 import java.util.UUID
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 import scala.reflect.internal.NoPhase.description
 
 class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
@@ -25,14 +25,12 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       .transact(transactor)
       .unsafeToFuture()(catsGlobal)
 
-  def condition(tag: Option[String],
-                author: Option[String],
-                favorited: Option[Boolean]) = {
+  def condition(tag: Option[String], author: Option[String], favorited: Option[Boolean]) = {
     if (tag.isEmpty && author.isEmpty && favorited.isEmpty) sql""
     else {
-      val xC = if (tag.isDefined) tag.map(tag => sql"${tag} = any (a.tag_list) ").getOrElse(sql"") else sql""
+      val xC       = if (tag.isDefined) tag.map(tag => sql"${tag} = any (a.tag_list) ").getOrElse(sql"") else sql""
       val yCPrefix = if (tag.isDefined && author.isDefined) sql"and " else sql""
-      val yC = if (author.isDefined) author.map(author => sql"u.username = ${author} ").getOrElse(sql"") else sql""
+      val yC       = if (author.isDefined) author.map(author => sql"u.username = ${author} ").getOrElse(sql"") else sql""
       val zCPrefix = if ((favorited.isDefined || tag.isDefined) && author.isDefined) sql"and " else sql""
       val zC =
         if (favorited.isDefined) favorited.map(favorited => sql"a.favorited = ${favorited} ").getOrElse(sql"")
@@ -118,8 +116,8 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
          |limit ${limit};
          """.stripMargin
   }.query[Article]
-  def save(userEmail: String, entity: CreateArticleModel)(
-      implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo] = {
+  def save(userEmail: String,
+           entity: CreateArticleModel)(implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo] = {
     val info = CreatingArticleAdditionalInfo(UUID.randomUUID().toString, LocalDateTime.now(), true, 0, true)
     insertQuery(userEmail, entity, info).run.transact(transactor).unsafeToFuture()(catsGlobal).map(_ => info)
   }
@@ -133,13 +131,12 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       .unsafeToFuture()
 
   override def find(slug: String, userEmail: Option[String]): Future[Option[Article]] = {
-    val query  = userEmail match {
+    val query = userEmail match {
       case Some(value) => findQueryForExistingUser(slug, value)
-      case None => findQuery(slug)
+      case None        => findQuery(slug)
     }
     query.option.transact(transactor).unsafeToFuture()
   }
-
 
   def findQueryForExistingUser(slug: String, userEmail: String) = {
     sql"""select
@@ -185,12 +182,22 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
      """.stripMargin
   }.query[Article]
 
-  override def get(userEmail: String, tag: Option[String], author: Option[String], favorited: Option[Boolean], offset: Int, limit: Int): Future[List[Article]] =
+  override def get(userEmail: String,
+                   tag: Option[String],
+                   author: Option[String],
+                   favorited: Option[Boolean],
+                   offset: Int,
+                   limit: Int): Future[List[Article]] =
     getForAuthUserQuery(userEmail, tag, author, favorited, offset, limit).stream.compile.toList
       .transact(transactor)
       .unsafeToFuture()(catsGlobal)
 
-  def getForAuthUserQuery(userEmail: String, tag: Option[String], author: Option[String], favorited: Option[Boolean], offset: Int, limit: Int) = {
+  def getForAuthUserQuery(userEmail: String,
+                          tag: Option[String],
+                          author: Option[String],
+                          favorited: Option[Boolean],
+                          offset: Int,
+                          limit: Int) = {
     val sqlToExecute = sql"""select distinct
          |	a.slug,
          |	a.title,
@@ -216,18 +223,23 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
   }
 
   def updateArticleQuery(title: String, description: String, body: String, slug: String) = {
-    sql"""update article set title = $title, description = $description, body = $body, updated_at = ${LocalDateTime.now()} where slug = $slug;""".update
+    sql"""update article set title = $title, description = $description, body = $body, updated_at = ${LocalDateTime
+      .now()} where slug = $slug;""".update
   }
 
   override def update(changeArticle: ChangeArticle, slug: String) =
-    updateArticleQuery(changeArticle.title, changeArticle.description, changeArticle.body, slug).run.transact(transactor).map(_ => ()).unsafeToFuture()
+    updateArticleQuery(changeArticle.title, changeArticle.description, changeArticle.body, slug).run
+      .transact(transactor)
+      .map(_ => ())
+      .unsafeToFuture()
 
   def deleteArticleQuery(slug: String) = sql"""delete from article where slug = $slug;""".update
 
   override def delete(slug: String) = deleteArticleQuery(slug).run.transact(transactor).map(_ => ()).unsafeToFuture()
 
   def checkPermissionsQuery(slug: String, userEmail: String) =
-    sql"""select 1488 from article where slug = $slug and user_id = (select id from users where email = $userEmail);""".query[Int]
+    sql"""select 1488 from article where slug = $slug and user_id = (select id from users where email = $userEmail);"""
+      .query[Int]
   override def checkPermissions(slug: String, userEmail: String): Future[Boolean] =
     checkPermissionsQuery(slug, userEmail).option.transact(transactor).map(_.isDefined).unsafeToFuture()
 }

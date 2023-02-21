@@ -11,12 +11,12 @@ import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
 import doobie._
-import cats.effect.unsafe.implicits.{global => catsGlobal}
+import cats.effect.unsafe.implicits.{ global => catsGlobal }
 import doobie.implicits._
 
 import scala.concurrent.Future
 
-class DoobieFollowRepo(transactor: Aux[IO, Unit]) extends FollowRepo{
+class DoobieFollowRepo(transactor: Aux[IO, Unit]) extends FollowRepo {
 
   def getQueryForUser(follower: String, followed: String) =
     sql"""select
@@ -54,9 +54,9 @@ class DoobieFollowRepo(transactor: Aux[IO, Unit]) extends FollowRepo{
          |	u.username = $username""".stripMargin.query[Author]
 
   override def get(username: String, follower: Option[String]): Future[Author] = {
-    val queryToExecute =  follower match {
+    val queryToExecute = follower match {
       case Some(value) => getQueryForUser(follower = value, followed = username)
-      case None => getQuery(username)
+      case None        => getQuery(username)
     }
     queryToExecute.unique.transact(transactor).unsafeToFuture()
   }
@@ -83,8 +83,8 @@ class DoobieFollowRepo(transactor: Aux[IO, Unit]) extends FollowRepo{
          |	u.username = $followed ));
          |""".stripMargin.update
 
-  override def follow(follower: String, followed: String): Future[Int] = followQuery(follower, followed).run.transact(transactor).unsafeToFuture()
-
+  override def follow(follower: String, followed: String): Future[Int] =
+    followQuery(follower, followed).run.transact(transactor).unsafeToFuture()
 
   def unfollowQuery(follower: String, followed: String) =
     sql"""delete
@@ -108,5 +108,6 @@ class DoobieFollowRepo(transactor: Aux[IO, Unit]) extends FollowRepo{
          |	where
          |		u.username = $followed );""".stripMargin.update
 
-  override def unfollow(follower: String, followed: String): Future[Int] = unfollowQuery(follower = follower, followed = followed).run.transact(transactor).unsafeToFuture()
+  override def unfollow(follower: String, followed: String): Future[Int] =
+    unfollowQuery(follower = follower, followed = followed).run.transact(transactor).unsafeToFuture()
 }

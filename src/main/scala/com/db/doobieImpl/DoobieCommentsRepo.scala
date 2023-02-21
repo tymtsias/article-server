@@ -8,7 +8,7 @@ import doobie.util.transactor.Transactor.Aux
 import doobie.implicits.javasql._
 import doobie.postgres.implicits._
 import doobie._
-import cats.effect.unsafe.implicits.{global => catsGlobal}
+import cats.effect.unsafe.implicits.{ global => catsGlobal }
 import doobie.implicits._
 
 import scala.concurrent.Future
@@ -122,9 +122,12 @@ class DoobieCommentsRepo(transactor: Aux[IO, Unit]) extends CommentsRepo {
   }
 
   override def create(slug: String, body: String, userEmail: String): Future[Comment] =
-    createAndGetIdQuery(slug, body, userEmail).unique.flatMap { gotId =>
-      find(gotId, userEmail).unique
-    }.transact(transactor).unsafeToFuture()
+    createAndGetIdQuery(slug, body, userEmail).unique
+      .flatMap { gotId =>
+        find(gotId, userEmail).unique
+      }
+      .transact(transactor)
+      .unsafeToFuture()
 
   override def delete(id: Int, userEmail: String): Future[Boolean] =
     checkPermissionForDeleteQuery(id, userEmail).option

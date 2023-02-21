@@ -1,11 +1,13 @@
 package com.db
 
-import com.models.{Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo}
+import com.models.{ Article, ChangeArticle, CreateArticleModel, CreatingArticleAdditionalInfo }
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 trait ArticlesRepo {
-  def save (userEmail: String, entity: CreateArticleModel)(implicit ec: ExecutionContext): Future[CreatingArticleAdditionalInfo]
+  def save(userEmail: String, entity: CreateArticleModel)(
+      implicit ec: ExecutionContext
+  ): Future[CreatingArticleAdditionalInfo]
 
   def yourFeed(offset: Int, limit: Int, userEmail: String): Future[List[Article]]
 

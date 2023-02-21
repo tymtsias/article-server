@@ -9,6 +9,4 @@ object Implicits {
     val toIO = IO.fromFuture(IO(v))
   }
 
-
-
 }
