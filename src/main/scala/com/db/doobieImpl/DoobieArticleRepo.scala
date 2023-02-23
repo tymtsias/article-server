@@ -34,7 +34,7 @@ class DoobieArticleRepo(transactor: Aux[IO, Unit]) extends ArticlesRepo {
       val zC =
         if (favorited.isDefined) favorited.map(favorited => sql"a.favorited = ${favorited} ").getOrElse(sql"")
         else sql""
-      sql"where " ++ xC ++ yCPrefix ++ yC ++ zCPrefix ++ zC
+      sql" where " ++ xC ++ yCPrefix ++ yC ++ zCPrefix ++ zC
     }
   }
   def getQuery(tag: Option[String],
