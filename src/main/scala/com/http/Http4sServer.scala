@@ -4,26 +4,9 @@ import cats.data.Kleisli
 import cats.effect._
 import cats.implicits._
 import com.Conf
-import com.db.{ ArticlesRepo, CommentsRepo, FavoritesRepo, FollowRepo, TagsRepo, UserRepo }
-import com.http.requests.{
-  ChangeArticleRequest,
-  ChangeUserRequest,
-  CreateArticleRequest,
-  CreateCommentRequest,
-  LoginUserRequest,
-  NewUserRequest
-}
-import com.http.responses.{
-  ArticlesResponse,
-  CommonArticleResponse,
-  CreateCommentResponse,
-  CreatingArticleResponse,
-  GetCommentsResponse,
-  TagsResponse,
-  UserProfileResponse,
-  UserResponse
-}
-import com.models.ChangeArticle
+import com.db._
+import com.http.requests._
+import com.http.responses._
 import com.models.auth.{ UserData, UserWithEncryptedPassword }
 import com.utils.Decoders._
 import com.utils.Encoders._
@@ -53,13 +36,9 @@ object LimitQueryParamMatcher extends QueryParamDecoderMatcher[Int]("limit")
 
 trait CustomServerError
 object X extends CustomServerError
-class Http4sServer(userRepo: UserRepo,
-                   articleRepo: ArticlesRepo,
-                   tagsRepo: TagsRepo,
-                   favoritesRepo: FavoritesRepo,
-                   commentsRepo: CommentsRepo,
-                   followRepo: FollowRepo)(implicit ec: ExecutionContext)
-    extends Http4sDsl[IO] {
+class Http4sServer(repoManager: RepoManager)(implicit ec: ExecutionContext) extends Http4sDsl[IO] {
+
+  val RepoManager(userRepo, articleRepo, tagsRepo, favoritesRepo, commentsRepo, followRepo) = repoManager
 
   def getAuthUserFromHeader(authHeader: String): IO[Option[UserData]] = {
     UserResponse.getEmail(authHeader).map { email =>

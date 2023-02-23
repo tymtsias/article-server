@@ -50,3 +50,13 @@ libraryDependencies += "at.favre.lib" % "bcrypt" % "0.10.2"
 
 // https://mvnrepository.com/artifact/com.typesafe.akka/akka-http
 libraryDependencies += "com.typesafe.akka" %% "akka-http" % "10.2.10"
+
+val AkkaVersion = "2.6.20"
+val AkkaHttpVersion = "10.2.10"
+libraryDependencies ++= Seq(
+  "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
+  "com.typesafe.akka" %% "akka-stream" % AkkaVersion,
+  "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion
+)
+libraryDependencies += "de.heikoseeberger" %% "akka-http-circe" % "1.40.0-RC3"
+libraryDependencies += "ch.megard" %% "akka-http-cors" % "1.1.3"
